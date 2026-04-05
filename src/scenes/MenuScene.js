@@ -106,10 +106,9 @@ export class MenuScene extends Phaser.Scene {
     // Space bar to start
     const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     spaceKey.once('down', () => {
-      this.cameras.main.fade(400, 0, 0, 0, false, (cam, progress) => {
-        if (progress === 1) {
-          this.scene.start('GameScene', { level: 1 });
-        }
+      this.cameras.main.fadeOut(400, 0, 0, 0);
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+        this.scene.start('GameScene', { level: 1 });
       });
     });
   }

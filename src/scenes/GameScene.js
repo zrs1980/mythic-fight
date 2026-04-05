@@ -19,6 +19,9 @@ export class GameScene extends Phaser.Scene {
 
   /** Set up all game systems for the current level */
   create() {
+    // Fade in from black so the transition is smooth
+    this.cameras.main.fadeIn(400, 0, 0, 0);
+
     const levelData = LEVELS[this._levelNum - 1];
     this._levelData = levelData;
     this._worldWidth = WORLD_WIDTH;

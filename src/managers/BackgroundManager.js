@@ -1,6 +1,7 @@
 // Generates layered backgrounds for each level programmatically
+// Avoids per-tile loops across worldWidth — uses solid fills + a few accents
 
-import { GAME_HEIGHT, FLOOR_MIN_Y } from '../config/constants.js';
+import { GAME_HEIGHT, GAME_WIDTH, FLOOR_MIN_Y } from '../config/constants.js';
 
 export class BackgroundManager {
 
@@ -21,100 +22,91 @@ export class BackgroundManager {
   static _castleBackground(scene, worldWidth) {
     const objects = [];
 
-    // Sky
-    const sky = scene.add.graphics();
+    // Sky (fixed — scrollFactor 0 so it never tiles out)
+    const sky = scene.add.graphics().setScrollFactor(0);
     sky.fillStyle(0x1a1a3e, 1);
-    sky.fillRect(0, 0, worldWidth, GAME_HEIGHT);
-    sky.setScrollFactor(0.1);
+    sky.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     objects.push(sky);
 
-    // Stars (distant)
-    const stars = scene.add.graphics();
-    stars.fillStyle(0xffffff, 0.6);
-    for (let i = 0; i < 120; i++) {
-      stars.fillCircle(Math.random() * worldWidth, Math.random() * FLOOR_MIN_Y * 0.7, Math.random() * 1.5 + 0.3);
-    }
-    stars.setScrollFactor(0.15);
+    // Distant stars (fixed on sky)
+    const stars = scene.add.graphics().setScrollFactor(0);
+    const starPositions = [
+      [0.08,0.05],[0.18,0.12],[0.28,0.07],[0.38,0.18],[0.48,0.04],
+      [0.58,0.14],[0.68,0.08],[0.78,0.16],[0.88,0.06],[0.95,0.20],
+      [0.12,0.22],[0.33,0.28],[0.52,0.25],[0.73,0.23],[0.91,0.30],
+    ];
+    starPositions.forEach(([sx, sy]) => {
+      stars.fillStyle(0xffffff, 0.7);
+      stars.fillCircle(sx * GAME_WIDTH, sy * FLOOR_MIN_Y, 1.5);
+    });
     objects.push(stars);
 
-    // Distant castle silhouette
-    const castle = scene.add.graphics();
+    // Castle silhouette (slow parallax, drawn once at fixed screen coords)
+    const castle = scene.add.graphics().setScrollFactor(0.15);
     castle.fillStyle(0x111128, 1);
-    castle.fillRect(200, 80, 800, 220);
-    castle.fillRect(180, 40, 80, 60);
-    castle.fillRect(360, 20, 80, 70);
-    castle.fillRect(540, 50, 80, 55);
-    castle.fillRect(720, 30, 80, 65);
-    castle.fillRect(900, 55, 80, 50);
-    // Battlements
-    for (let x = 180; x < 1000; x += 40) {
-      castle.fillRect(x, 75, 22, 20);
+    castle.fillRect(100, 90, 780, 230);
+    // Towers
+    [[80, 50, 85, 100],[260, 30, 75, 110],[470, 15, 80, 115],[680, 35, 78, 105],[860, 55, 85, 95]].forEach(([x, y, w, h]) => {
+      castle.fillRect(x, y, w, h);
+    });
+    // Battlements (just 12, not looped across worldWidth)
+    for (let i = 0; i < 14; i++) {
+      castle.fillRect(100 + i * 57, 85, 24, 22);
     }
-    // Windows
-    castle.fillStyle(0xffaa33, 0.6);
-    for (let x = 240; x < 950; x += 120) {
-      castle.fillRect(x, 130, 20, 30);
-    }
-    castle.setScrollFactor(0.2);
+    // Glowing windows
+    castle.fillStyle(0xffaa33, 0.55);
+    [200, 330, 460, 590, 720].forEach(wx => {
+      castle.fillRect(wx, 150, 22, 30);
+    });
     objects.push(castle);
 
-    // Stone wall tiles (repeating)
-    const wallBg = scene.add.graphics();
-    wallBg.fillStyle(0x3a3a4a, 1);
-    wallBg.fillRect(0, FLOOR_MIN_Y - 160, worldWidth, 160);
-    // Stone tile grid
-    for (let x = 0; x < worldWidth; x += 80) {
-      for (let y = FLOOR_MIN_Y - 160; y < FLOOR_MIN_Y; y += 36) {
-        wallBg.lineStyle(1, 0x222233, 0.8);
-        wallBg.strokeRect(x + (Math.floor(y / 36) % 2 === 0 ? 0 : 40), y, 80, 36);
-      }
-    }
-    wallBg.setScrollFactor(0.6);
-    objects.push(wallBg);
+    // Stone wall mid-section (solid colour, spans world width — single fillRect)
+    const wall = scene.add.graphics().setScrollFactor(0.55);
+    wall.fillStyle(0x3a3a4a, 1);
+    wall.fillRect(0, FLOOR_MIN_Y - 150, worldWidth, 150);
+    // Horizontal mortar lines (just 4 lines — not a tile grid)
+    wall.lineStyle(1, 0x282838, 0.7);
+    [1, 2, 3, 4].forEach(i => {
+      wall.lineBetween(0, FLOOR_MIN_Y - 150 + i * 30, worldWidth, FLOOR_MIN_Y - 150 + i * 30);
+    });
+    objects.push(wall);
 
-    // Torches along the wall
-    for (let tx = 200; tx < worldWidth; tx += 280) {
-      const torch = scene.add.graphics();
-      // Pole
+    // Torches — only 6, spread across visible portion (not full worldWidth loop)
+    [280, 700, 1120, 1540, 1960, 2380].forEach(tx => {
+      const torch = scene.add.graphics().setScrollFactor(0.6);
       torch.fillStyle(0x5c3d1e, 1);
-      torch.fillRect(tx, FLOOR_MIN_Y - 70, 8, 50);
-      torch.fillRect(tx - 5, FLOOR_MIN_Y - 75, 18, 10);
-      // Flame
+      torch.fillRect(tx, FLOOR_MIN_Y - 65, 8, 48);
+      torch.fillRect(tx - 5, FLOOR_MIN_Y - 70, 18, 10);
       torch.fillStyle(0xff6600, 0.9);
-      torch.fillTriangle(tx + 4, FLOOR_MIN_Y - 100, tx - 5, FLOOR_MIN_Y - 72, tx + 13, FLOOR_MIN_Y - 72);
-      torch.fillStyle(0xffcc00, 0.9);
-      torch.fillTriangle(tx + 4, FLOOR_MIN_Y - 90, tx - 1, FLOOR_MIN_Y - 72, tx + 9, FLOOR_MIN_Y - 72);
-      // Glow halo
-      torch.fillStyle(0xff8800, 0.15);
-      torch.fillCircle(tx + 4, FLOOR_MIN_Y - 80, 30);
-      torch.setScrollFactor(0.6);
+      torch.fillTriangle(tx + 4, FLOOR_MIN_Y - 98, tx - 4, FLOOR_MIN_Y - 70, tx + 12, FLOOR_MIN_Y - 70);
+      torch.fillStyle(0xffcc00, 0.85);
+      torch.fillTriangle(tx + 4, FLOOR_MIN_Y - 88, tx, FLOOR_MIN_Y - 70, tx + 8, FLOOR_MIN_Y - 70);
+      torch.fillStyle(0xff8800, 0.12);
+      torch.fillCircle(tx + 4, FLOOR_MIN_Y - 82, 28);
       objects.push(torch);
-    }
+    });
 
-    // Banners
-    for (let bx = 400; bx < worldWidth; bx += 450) {
-      const banner = scene.add.graphics();
+    // Banners — only 4
+    [380, 900, 1420, 1940].forEach(bx => {
+      const banner = scene.add.graphics().setScrollFactor(0.6);
       banner.fillStyle(0x880000, 1);
-      banner.fillRect(bx, FLOOR_MIN_Y - 130, 40, 70);
+      banner.fillRect(bx, FLOOR_MIN_Y - 128, 40, 68);
       banner.fillStyle(0xffd700, 1);
-      banner.fillTriangle(bx + 20, FLOOR_MIN_Y - 60, bx + 5, FLOOR_MIN_Y - 45, bx + 35, FLOOR_MIN_Y - 45);
+      banner.fillTriangle(bx + 20, FLOOR_MIN_Y - 58, bx + 5, FLOOR_MIN_Y - 44, bx + 35, FLOOR_MIN_Y - 44);
       banner.lineStyle(2, 0xffd700, 1);
-      banner.strokeRect(bx, FLOOR_MIN_Y - 130, 40, 70);
-      banner.setScrollFactor(0.6);
+      banner.strokeRect(bx, FLOOR_MIN_Y - 128, 40, 68);
       objects.push(banner);
-    }
+    });
 
-    // Floor
+    // Floor (solid, full world width — one draw call)
     const floor = scene.add.graphics();
     floor.fillStyle(0x555566, 1);
     floor.fillRect(0, FLOOR_MIN_Y, worldWidth, GAME_HEIGHT - FLOOR_MIN_Y);
-    // Floor tile pattern
-    for (let x = 0; x < worldWidth; x += 64) {
-      for (let y = FLOOR_MIN_Y; y < GAME_HEIGHT; y += 24) {
-        floor.lineStyle(1, 0x444455, 0.6);
-        floor.strokeRect(x + (Math.floor(y / 24) % 2 === 0 ? 0 : 32), y, 64, 24);
-      }
-    }
+    // Two floor accent lines
+    floor.lineStyle(2, 0x444455, 0.8);
+    floor.lineBetween(0, FLOOR_MIN_Y + 8, worldWidth, FLOOR_MIN_Y + 8);
+    floor.lineStyle(1, 0x444455, 0.4);
+    floor.lineBetween(0, FLOOR_MIN_Y + 20, worldWidth, FLOOR_MIN_Y + 20);
     objects.push(floor);
 
     return objects;
@@ -125,98 +117,80 @@ export class BackgroundManager {
   static _alienBackground(scene, worldWidth) {
     const objects = [];
 
-    // Space sky
-    const sky = scene.add.graphics();
+    // Space sky (fixed)
+    const sky = scene.add.graphics().setScrollFactor(0);
     sky.fillStyle(0x000010, 1);
-    sky.fillRect(0, 0, worldWidth, GAME_HEIGHT);
-    sky.setScrollFactor(0.05);
+    sky.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     objects.push(sky);
 
-    // Stars (many small white dots)
-    const stars = scene.add.graphics();
-    for (let i = 0; i < 300; i++) {
-      const brightness = Math.random();
-      stars.fillStyle(0xffffff, brightness * 0.8 + 0.2);
-      stars.fillCircle(Math.random() * worldWidth, Math.random() * FLOOR_MIN_Y, Math.random() * 1.8 + 0.2);
-    }
-    stars.setScrollFactor(0.08);
+    // Stars (fixed, many small dots)
+    const stars = scene.add.graphics().setScrollFactor(0);
+    const alienStars = [
+      [0.05,0.08],[0.12,0.03],[0.20,0.15],[0.28,0.06],[0.36,0.18],
+      [0.44,0.10],[0.52,0.04],[0.60,0.20],[0.68,0.12],[0.76,0.05],
+      [0.84,0.17],[0.92,0.09],[0.10,0.28],[0.30,0.32],[0.50,0.26],
+      [0.70,0.30],[0.88,0.24],[0.03,0.35],[0.40,0.40],[0.62,0.38],
+      [0.80,0.42],[0.95,0.35],[0.22,0.45],[0.55,0.48],[0.75,0.50],
+    ];
+    alienStars.forEach(([sx, sy]) => {
+      const alpha = 0.4 + Math.random() * 0.6;
+      stars.fillStyle(0xffffff, alpha);
+      stars.fillCircle(sx * GAME_WIDTH, sy * FLOOR_MIN_Y, Math.random() * 1.5 + 0.3);
+    });
     objects.push(stars);
 
-    // Large pink/purple/black moon on the left
-    const moon = scene.add.graphics();
-    // Outer glow
-    moon.fillStyle(0x880044, 0.2);
-    moon.fillCircle(180, 170, 130);
-    // Main moon body
+    // Large PINK/PURPLE/BLACK moon (fixed left side)
+    const moon = scene.add.graphics().setScrollFactor(0);
+    moon.fillStyle(0x880044, 0.18);
+    moon.fillCircle(155, 160, 125);
     moon.fillStyle(0x9944aa, 1);
-    moon.fillCircle(180, 170, 110);
+    moon.fillCircle(155, 160, 108);
     moon.fillStyle(0xcc55bb, 1);
-    moon.fillCircle(155, 145, 85);
+    moon.fillCircle(130, 138, 84);
     moon.fillStyle(0xee77cc, 1);
-    moon.fillCircle(145, 135, 65);
-    moon.fillStyle(0xbb3388, 1);
-    moon.fillCircle(180, 170, 110); // overlay for craters
-    // Moon craters
-    moon.fillStyle(0x220033, 0.7);
-    moon.fillCircle(140, 130, 22);
-    moon.fillCircle(200, 160, 15);
-    moon.fillCircle(160, 190, 18);
-    moon.fillCircle(215, 130, 10);
-    moon.setScrollFactor(0.05);
+    moon.fillCircle(120, 126, 62);
+    // Black/dark craters
+    moon.fillStyle(0x220033, 0.75);
+    moon.fillCircle(118, 122, 20);
+    moon.fillCircle(168, 155, 14);
+    moon.fillCircle(140, 178, 17);
+    moon.fillCircle(175, 120, 9);
     objects.push(moon);
 
-    // Alien nebula colors in sky
-    const nebula = scene.add.graphics();
-    nebula.fillStyle(0x330066, 0.3);
-    nebula.fillEllipse(900, 120, 500, 180);
-    nebula.fillStyle(0x004433, 0.25);
-    nebula.fillEllipse(1400, 80, 400, 150);
-    nebula.fillStyle(0x440055, 0.2);
-    nebula.fillEllipse(2200, 100, 600, 200);
-    nebula.setScrollFactor(0.12);
+    // Nebula wisps (fixed)
+    const nebula = scene.add.graphics().setScrollFactor(0);
+    nebula.fillStyle(0x330066, 0.28);
+    nebula.fillEllipse(640, 110, 420, 150);
+    nebula.fillStyle(0x004433, 0.22);
+    nebula.fillEllipse(800, 75, 320, 120);
     objects.push(nebula);
 
-    // Alien ground/wall mid-section
-    const ground = scene.add.graphics();
-    ground.fillStyle(0x2d1f4a, 1);
-    ground.fillRect(0, FLOOR_MIN_Y - 130, worldWidth, 130);
-    // Purple/green ground swirls
-    ground.fillStyle(0x1a3a1a, 0.4);
-    for (let x = 0; x < worldWidth; x += 200) {
-      ground.fillEllipse(x + 100, FLOOR_MIN_Y - 40, 180, 60);
-    }
-    ground.setScrollFactor(0.5);
-    objects.push(ground);
+    // Alien mid-ground (solid colour, world width)
+    const midground = scene.add.graphics().setScrollFactor(0.45);
+    midground.fillStyle(0x2d1f4a, 1);
+    midground.fillRect(0, FLOOR_MIN_Y - 120, worldWidth, 120);
+    // Bioluminescent horizontal glow strip
+    midground.fillStyle(0x00ff88, 0.12);
+    midground.fillRect(0, FLOOR_MIN_Y - 10, worldWidth, 10);
+    objects.push(midground);
 
-    // Alien rock formations
-    for (let rx = 100; rx < worldWidth; rx += 350) {
-      const rock = scene.add.graphics();
-      const rh = 60 + Math.random() * 80;
+    // Alien rock formations — only 5 at fixed world positions
+    [300, 750, 1200, 1650, 2100].forEach(rx => {
+      const rock = scene.add.graphics().setScrollFactor(0.5);
       rock.fillStyle(0x3d2f5a, 1);
-      rock.fillTriangle(rx, FLOOR_MIN_Y, rx - 50, FLOOR_MIN_Y, rx - 20, FLOOR_MIN_Y - rh);
-      rock.fillTriangle(rx + 30, FLOOR_MIN_Y, rx - 20, FLOOR_MIN_Y, rx + 10, FLOOR_MIN_Y - rh * 0.7);
-      // Bioluminescent glow
+      rock.fillTriangle(rx, FLOOR_MIN_Y, rx - 48, FLOOR_MIN_Y, rx - 18, FLOOR_MIN_Y - 90);
+      rock.fillTriangle(rx + 28, FLOOR_MIN_Y, rx - 18, FLOOR_MIN_Y, rx + 8, FLOOR_MIN_Y - 65);
       rock.fillStyle(0x00ff88, 0.3);
-      rock.fillCircle(rx - 20, FLOOR_MIN_Y - rh * 0.5, 15);
-      rock.setScrollFactor(0.45);
+      rock.fillCircle(rx - 18, FLOOR_MIN_Y - 55, 12);
       objects.push(rock);
-    }
+    });
 
     // Floor (alien surface)
     const floor = scene.add.graphics();
     floor.fillStyle(0x3d2f5a, 1);
     floor.fillRect(0, FLOOR_MIN_Y, worldWidth, GAME_HEIGHT - FLOOR_MIN_Y);
-    // Alien ground texture
-    floor.fillStyle(0x2a1f40, 1);
-    for (let x = 0; x < worldWidth; x += 80) {
-      floor.fillRect(x, FLOOR_MIN_Y + 10, 70, 8);
-    }
-    // Glowing cracks
-    floor.lineStyle(1, 0x00ff88, 0.4);
-    for (let x = 0; x < worldWidth; x += 180) {
-      floor.lineBetween(x, FLOOR_MIN_Y, x + 60, FLOOR_MIN_Y + 40);
-      floor.lineBetween(x + 60, FLOOR_MIN_Y, x + 40, FLOOR_MIN_Y + 60);
-    }
+    floor.lineStyle(1, 0x00ff88, 0.35);
+    floor.lineBetween(0, FLOOR_MIN_Y + 5, worldWidth, FLOOR_MIN_Y + 5);
     objects.push(floor);
 
     return objects;
@@ -227,88 +201,64 @@ export class BackgroundManager {
   static _victorianBackground(scene, worldWidth) {
     const objects = [];
 
-    // Grey foggy sky
-    const sky = scene.add.graphics();
+    // Grey foggy sky (fixed)
+    const sky = scene.add.graphics().setScrollFactor(0);
     sky.fillStyle(0x808090, 1);
-    sky.fillRect(0, 0, worldWidth, GAME_HEIGHT);
-    sky.setScrollFactor(0.05);
+    sky.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     objects.push(sky);
 
-    // Fog layers
-    const fog = scene.add.graphics();
-    fog.fillStyle(0xc0c0c8, 0.4);
-    fog.fillRect(0, 0, worldWidth, FLOOR_MIN_Y * 0.8);
-    fog.fillStyle(0xd0d0d8, 0.3);
-    fog.fillRect(0, FLOOR_MIN_Y * 0.3, worldWidth, FLOOR_MIN_Y * 0.5);
-    fog.setScrollFactor(0.1);
+    // Fog layer (fixed)
+    const fog = scene.add.graphics().setScrollFactor(0);
+    fog.fillStyle(0xc8c8d0, 0.35);
+    fog.fillRect(0, 0, GAME_WIDTH, FLOOR_MIN_Y * 0.9);
+    fog.fillStyle(0xd8d8e0, 0.2);
+    fog.fillRect(0, FLOOR_MIN_Y * 0.4, GAME_WIDTH, FLOOR_MIN_Y * 0.5);
     objects.push(fog);
 
-    // Victorian building silhouettes (distant)
-    const buildings = scene.add.graphics();
+    // Victorian building silhouettes (fixed, slow scroll)
+    const buildings = scene.add.graphics().setScrollFactor(0.18);
     buildings.fillStyle(0x404048, 1);
-    const buildingData = [
-      [0, 180, 150], [160, 150, 120], [290, 200, 180], [480, 140, 100],
-      [590, 170, 160], [760, 130, 110], [880, 190, 140], [1030, 160, 130],
-    ];
-    buildingData.forEach(([bx, bh, bw]) => {
+    [[0, 185, 145],[155, 152, 118],[282, 205, 175],[468, 142, 98],
+     [576, 172, 158],[744, 132, 108],[862, 195, 140],[1012, 158, 128]].forEach(([bx, bh, bw]) => {
       buildings.fillRect(bx, FLOOR_MIN_Y - bh, bw, bh);
-      // Peaked roof
-      buildings.fillTriangle(bx, FLOOR_MIN_Y - bh, bx + bw * 0.5, FLOOR_MIN_Y - bh - 40, bx + bw, FLOOR_MIN_Y - bh);
-      // Windows
-      buildings.fillStyle(0xffff88, 0.6);
-      for (let wy = FLOOR_MIN_Y - bh + 20; wy < FLOOR_MIN_Y - 30; wy += 35) {
-        for (let wx = bx + 15; wx < bx + bw - 10; wx += 30) {
-          buildings.fillRect(wx, wy, 14, 18);
-        }
-      }
-      buildings.fillStyle(0x404048, 1);
+      buildings.fillTriangle(bx, FLOOR_MIN_Y - bh, bx + bw * 0.5, FLOOR_MIN_Y - bh - 38, bx + bw, FLOOR_MIN_Y - bh);
       // Chimney
-      buildings.fillRect(bx + bw * 0.6, FLOOR_MIN_Y - bh - 30, 14, 35);
+      buildings.fillRect(bx + bw * 0.6, FLOOR_MIN_Y - bh - 28, 14, 34);
+      // Just 2 windows per building, not nested loops
+      buildings.fillStyle(0xffff88, 0.55);
+      buildings.fillRect(bx + 15, FLOOR_MIN_Y - bh + 25, 14, 18);
+      buildings.fillRect(bx + bw * 0.55, FLOOR_MIN_Y - bh + 25, 14, 18);
+      buildings.fillStyle(0x404048, 1);
     });
-    buildings.setScrollFactor(0.2);
     objects.push(buildings);
 
-    // Gas lamp posts
-    for (let lx = 150; lx < worldWidth; lx += 300) {
-      const lamp = scene.add.graphics();
-      // Post
+    // Gas lamps — only 5 across visible area
+    [180, 460, 740, 1020, 1300].forEach(lx => {
+      const lamp = scene.add.graphics().setScrollFactor(0.55);
       lamp.fillStyle(0x333344, 1);
-      lamp.fillRect(lx, FLOOR_MIN_Y - 120, 6, 120);
-      // Arm
-      lamp.fillRect(lx - 20, FLOOR_MIN_Y - 120, 26, 6);
-      // Lantern
+      lamp.fillRect(lx, FLOOR_MIN_Y - 118, 6, 118);
+      lamp.fillRect(lx - 20, FLOOR_MIN_Y - 118, 26, 6);
       lamp.fillStyle(0x555566, 1);
       lamp.fillRect(lx - 28, FLOOR_MIN_Y - 140, 20, 24);
       lamp.fillStyle(0xffee88, 0.9);
       lamp.fillRect(lx - 26, FLOOR_MIN_Y - 138, 16, 20);
-      // Fog halo from lamp
-      lamp.fillStyle(0xffee88, 0.1);
-      lamp.fillCircle(lx - 18, FLOOR_MIN_Y - 128, 50);
-      lamp.setScrollFactor(0.5);
+      lamp.fillStyle(0xffee88, 0.08);
+      lamp.fillCircle(lx - 18, FLOOR_MIN_Y - 128, 48);
       objects.push(lamp);
-    }
+    });
 
-    // Wall/cobblestone mid section
-    const wall = scene.add.graphics();
+    // Wall mid-section (solid)
+    const wall = scene.add.graphics().setScrollFactor(0.55);
     wall.fillStyle(0x5a5a62, 1);
-    wall.fillRect(0, FLOOR_MIN_Y - 100, worldWidth, 100);
-    wall.setScrollFactor(0.5);
+    wall.fillRect(0, FLOOR_MIN_Y - 95, worldWidth, 95);
     objects.push(wall);
 
-    // Floor — cobblestone
+    // Floor (solid cobblestone colour, no tiling loop)
     const floor = scene.add.graphics();
     floor.fillStyle(0x6a6a72, 1);
     floor.fillRect(0, FLOOR_MIN_Y, worldWidth, GAME_HEIGHT - FLOOR_MIN_Y);
-    // Cobblestone pattern
-    for (let x = 0; x < worldWidth; x += 40) {
-      for (let y = FLOOR_MIN_Y; y < GAME_HEIGHT; y += 22) {
-        const offset = Math.floor(y / 22) % 2 === 0 ? 0 : 20;
-        floor.fillStyle(0x5c5c64, 0.8);
-        floor.fillEllipse(x + offset + 20, y + 11, 38, 18);
-        floor.lineStyle(1, 0x4a4a52, 0.7);
-        floor.strokeEllipse(x + offset + 20, y + 11, 38, 18);
-      }
-    }
+    floor.lineStyle(2, 0x5a5a62, 0.7);
+    floor.lineBetween(0, FLOOR_MIN_Y + 10, worldWidth, FLOOR_MIN_Y + 10);
     objects.push(floor);
 
     return objects;
@@ -319,72 +269,58 @@ export class BackgroundManager {
   static _sunBackground(scene, worldWidth) {
     const objects = [];
 
-    // Blazing gradient sky (orange/red/yellow)
-    const sky = scene.add.graphics();
+    // Blazing sky (fixed gradient effect via two rects)
+    const sky = scene.add.graphics().setScrollFactor(0);
     sky.fillGradientStyle(0xffcc00, 0xffcc00, 0xff4400, 0xff4400, 1);
-    sky.fillRect(0, 0, worldWidth, FLOOR_MIN_Y);
-    sky.setScrollFactor(0.08);
+    sky.fillRect(0, 0, GAME_WIDTH, FLOOR_MIN_Y);
     objects.push(sky);
 
-    // Solar flare streaks
-    const flares = scene.add.graphics();
-    for (let fx = 0; fx < worldWidth; fx += 400) {
-      flares.fillStyle(0xffffff, 0.15);
-      flares.fillTriangle(fx, 0, fx + 60, FLOOR_MIN_Y, fx + 200, 0);
-      flares.fillStyle(0xffff00, 0.12);
-      flares.fillTriangle(fx + 150, 0, fx + 80, FLOOR_MIN_Y, fx + 350, 0);
-    }
-    flares.setScrollFactor(0.15);
+    // Solar flare streaks (fixed, just 6)
+    const flares = scene.add.graphics().setScrollFactor(0);
+    flares.fillStyle(0xffffff, 0.14);
+    [[0, 60, 200],[150, 80, 350],[320, 50, 180],[500, 90, 280],[700, 40, 200],[820, 70, 160]].forEach(([fx, fw, fh]) => {
+      flares.fillTriangle(fx, 0, fx + fw * 0.3, FLOOR_MIN_Y, fx + fw, 0);
+    });
     objects.push(flares);
 
-    // Plasma blobs in mid-background
-    const plasma = scene.add.graphics();
-    for (let px = 100; px < worldWidth; px += 300) {
-      plasma.fillStyle(0xff9900, 0.5);
-      plasma.fillEllipse(px, FLOOR_MIN_Y - 50, 180, 80);
+    // Plasma blobs mid-background
+    const plasma = scene.add.graphics().setScrollFactor(0.3);
+    [[80, FLOOR_MIN_Y - 55, 190, 80],[380, FLOOR_MIN_Y - 65, 150, 65],
+     [680, FLOOR_MIN_Y - 50, 170, 75],[980, FLOOR_MIN_Y - 60, 160, 70]].forEach(([px, py, pw, ph]) => {
+      plasma.fillStyle(0xff9900, 0.55);
+      plasma.fillEllipse(px, py, pw, ph);
       plasma.fillStyle(0xffdd00, 0.4);
-      plasma.fillEllipse(px + 40, FLOOR_MIN_Y - 60, 120, 60);
-    }
-    plasma.setScrollFactor(0.3);
+      plasma.fillEllipse(px + 30, py - 10, pw * 0.65, ph * 0.65);
+    });
     objects.push(plasma);
 
-    // Sun surface texture mid-section
-    const surface = scene.add.graphics();
+    // Sun surface mid-section (solid)
+    const surface = scene.add.graphics().setScrollFactor(0.5);
     surface.fillStyle(0xcc4400, 1);
-    surface.fillRect(0, FLOOR_MIN_Y - 80, worldWidth, 80);
-    // Boiling surface bubbles
+    surface.fillRect(0, FLOOR_MIN_Y - 78, worldWidth, 78);
+    // A few boiling bubbles (just 5, not a loop across worldWidth)
     surface.fillStyle(0xff6600, 0.7);
-    for (let bx = 0; bx < worldWidth; bx += 120) {
-      surface.fillEllipse(bx + 60, FLOOR_MIN_Y - 60, 100, 50);
-    }
-    surface.setScrollFactor(0.5);
+    [120, 360, 600, 840, 1080].forEach(bx => {
+      surface.fillEllipse(bx, FLOOR_MIN_Y - 55, 110, 52);
+    });
     objects.push(surface);
 
-    // Plasma pools on floor
-    for (let px = 200; px < worldWidth; px += 500) {
-      const pool = scene.add.graphics();
-      pool.fillStyle(0xff6600, 0.7);
-      pool.fillEllipse(px, FLOOR_MIN_Y + 30, 160, 40);
+    // Plasma pools on floor (4 pools)
+    [250, 650, 1050, 1450].forEach(px => {
+      const pool = scene.add.graphics().setScrollFactor(0.8);
+      pool.fillStyle(0xff6600, 0.72);
+      pool.fillEllipse(px, FLOOR_MIN_Y + 28, 165, 42);
       pool.fillStyle(0xffcc00, 0.5);
-      pool.fillEllipse(px + 10, FLOOR_MIN_Y + 25, 100, 25);
-      pool.setScrollFactor(0.8);
+      pool.fillEllipse(px + 12, FLOOR_MIN_Y + 23, 105, 26);
       objects.push(pool);
-    }
+    });
 
-    // Floor (red hot)
+    // Floor (red-hot)
     const floor = scene.add.graphics();
     floor.fillStyle(0xdd5511, 1);
     floor.fillRect(0, FLOOR_MIN_Y, worldWidth, GAME_HEIGHT - FLOOR_MIN_Y);
-    // Glowing cracks
     floor.lineStyle(2, 0xff9900, 0.6);
-    for (let x = 0; x < worldWidth; x += 200) {
-      floor.lineBetween(x, FLOOR_MIN_Y, x + 80, FLOOR_MIN_Y + 50);
-      floor.lineBetween(x + 80, FLOOR_MIN_Y + 50, x + 30, FLOOR_MIN_Y + 90);
-    }
-    floor.fillStyle(0xffaa00, 0.5);
-    for (let x = 80; x < worldWidth; x += 200) {
-      floor.fillEllipse(x, FLOOR_MIN_Y + 50, 60, 25);
-    }
+    floor.lineBetween(0, FLOOR_MIN_Y + 6, worldWidth, FLOOR_MIN_Y + 6);
     objects.push(floor);
 
     return objects;
@@ -395,95 +331,85 @@ export class BackgroundManager {
   static _darkKingdomBackground(scene, worldWidth) {
     const objects = [];
 
-    // Deep dark purple/black sky
-    const sky = scene.add.graphics();
+    // Deep dark sky (fixed)
+    const sky = scene.add.graphics().setScrollFactor(0);
     sky.fillGradientStyle(0x0d0010, 0x0d0010, 0x220030, 0x220030, 1);
-    sky.fillRect(0, 0, worldWidth, GAME_HEIGHT);
-    sky.setScrollFactor(0.05);
+    sky.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     objects.push(sky);
 
-    // Dark glitter stars
-    const stars = scene.add.graphics();
-    for (let i = 0; i < 200; i++) {
-      const color = [0xff00ff, 0xaa00ff, 0x6600cc, 0xffffff][Math.floor(Math.random() * 4)];
-      stars.fillStyle(color, Math.random() * 0.7 + 0.2);
-      stars.fillCircle(Math.random() * worldWidth, Math.random() * FLOOR_MIN_Y * 0.8, Math.random() * 2 + 0.3);
-    }
-    stars.setScrollFactor(0.08);
+    // Dark glitter stars (fixed, coloured)
+    const stars = scene.add.graphics().setScrollFactor(0);
+    const darkStars = [
+      [0.06,0.04,0xff00ff],[0.14,0.14,0xffffff],[0.24,0.07,0xaa00ff],
+      [0.35,0.20,0xff00ff],[0.46,0.05,0xffffff],[0.55,0.16,0x6600cc],
+      [0.65,0.09,0xff00ff],[0.74,0.22,0xffffff],[0.84,0.06,0xaa00ff],
+      [0.93,0.18,0xff00ff],[0.08,0.30,0x6600cc],[0.30,0.38,0xffffff],
+      [0.52,0.28,0xff00ff],[0.72,0.35,0xaa00ff],[0.90,0.32,0xffffff],
+    ];
+    darkStars.forEach(([sx, sy, col]) => {
+      stars.fillStyle(col, 0.6 + Math.random() * 0.3);
+      stars.fillCircle(sx * GAME_WIDTH, sy * FLOOR_MIN_Y, Math.random() * 1.8 + 0.3);
+    });
     objects.push(stars);
 
-    // Twisted Disney castle silhouette
-    const castle = scene.add.graphics();
+    // Twisted Disney castle silhouette (fixed, slow scroll)
+    const castle = scene.add.graphics().setScrollFactor(0.12);
     castle.fillStyle(0x1a0025, 1);
-    // Main body
-    castle.fillRect(600, 60, 400, 260);
-    // Towers
-    castle.fillRect(560, 40, 80, 280);
-    castle.fillRect(960, 50, 80, 270);
-    castle.fillRect(700, 20, 70, 320);
-    castle.fillRect(830, 30, 70, 310);
+    castle.fillRect(580, 60, 410, 262);
+    castle.fillRect(558, 38, 82, 284); // tower left
+    castle.fillRect(960, 48, 82, 274); // tower right
+    castle.fillRect(698, 18, 72, 322); // middle tower L
+    castle.fillRect(828, 28, 72, 312); // middle tower R
     // Spires
-    castle.fillTriangle(600, 40, 560, 40, 580, -20);
-    castle.fillTriangle(640, 40, 600, 40, 620, -30);
-    castle.fillTriangle(1000, 50, 960, 50, 980, -15);
-    castle.fillTriangle(735, 20, 700, 20, 717, -35);
-    castle.fillTriangle(865, 30, 830, 30, 847, -25);
-    // Warped/twisted windows (glowing red)
-    castle.fillStyle(0x990000, 0.7);
-    for (let wx = 620; wx < 990; wx += 80) {
+    castle.fillTriangle(558, 38, 598, 38, 578, -22);
+    castle.fillTriangle(960, 48, 1000, 48, 980, -18);
+    castle.fillTriangle(698, 18, 738, 18, 718, -38);
+    castle.fillTriangle(828, 28, 868, 28, 848, -28);
+    // Glowing red windows (just 6, not looped)
+    castle.fillStyle(0x990000, 0.72);
+    [620, 700, 780, 860, 920, 980].forEach(wx => {
       castle.fillRect(wx, 120, 22, 32);
-      castle.fillRect(wx, 180, 22, 32);
-    }
-    castle.setScrollFactor(0.15);
+    });
     objects.push(castle);
 
-    // Floating distorted balloons
-    const balloonColors = [0xff0066, 0x8800ff, 0x000088, 0x660000];
-    for (let bx = 200; bx < worldWidth; bx += 400) {
-      const balloon = scene.add.graphics();
-      const bc = balloonColors[Math.floor(Math.random() * balloonColors.length)];
-      const by = 60 + Math.random() * 160;
-      balloon.fillStyle(bc, 0.85);
-      // Warped balloon shape
-      balloon.fillEllipse(bx, by, 38, 48);
-      balloon.fillStyle(bc, 0.6);
+    // Floating balloons (5 at fixed positions)
+    [[180, 70],[420, 110],[560, 55],[740, 90],[920, 65]].forEach(([bx, by], i) => {
+      const balloon = scene.add.graphics().setScrollFactor(0.18 + i * 0.02);
+      const cols = [0xff0066, 0x8800ff, 0x000088, 0x660000, 0x440044];
+      balloon.fillStyle(cols[i], 0.88);
+      balloon.fillEllipse(bx, by, 36, 46);
+      balloon.fillStyle(cols[i], 0.55);
       balloon.fillEllipse(bx - 8, by - 10, 20, 26);
-      // String (wavy)
       balloon.lineStyle(1, 0x440044, 0.8);
-      balloon.lineBetween(bx, by + 24, bx + 5, by + 45);
-      balloon.lineBetween(bx + 5, by + 45, bx - 3, by + 65);
-      balloon.setScrollFactor(0.2 + Math.random() * 0.1);
+      balloon.lineBetween(bx, by + 23, bx + 4, by + 44);
+      balloon.lineBetween(bx + 4, by + 44, bx - 2, by + 64);
       objects.push(balloon);
-    }
+    });
 
-    // Dark mid-section
-    const mid = scene.add.graphics();
+    // Dark mid-section with fence
+    const mid = scene.add.graphics().setScrollFactor(0.5);
     mid.fillStyle(0x1a0025, 1);
-    mid.fillRect(0, FLOOR_MIN_Y - 100, worldWidth, 100);
-    // Warped fence/gate silhouettes
-    for (let fx = 0; fx < worldWidth; fx += 60) {
-      mid.fillStyle(0x0d0018, 1);
-      mid.fillRect(fx, FLOOR_MIN_Y - 90, 8, 90);
-      mid.fillCircle(fx + 4, FLOOR_MIN_Y - 92, 6);
+    mid.fillRect(0, FLOOR_MIN_Y - 98, worldWidth, 98);
+    // Fence spikes — just 16 visible ones, not a worldWidth loop
+    mid.fillStyle(0x0d0018, 1);
+    for (let fi = 0; fi < 16; fi++) {
+      const fx = fi * 62;
+      mid.fillRect(fx, FLOOR_MIN_Y - 88, 8, 88);
+      mid.fillCircle(fx + 4, FLOOR_MIN_Y - 90, 6);
     }
-    mid.setScrollFactor(0.5);
     objects.push(mid);
 
-    // Floor — dark, shiny
+    // Floor (dark purple)
     const floor = scene.add.graphics();
     floor.fillStyle(0x220030, 1);
     floor.fillRect(0, FLOOR_MIN_Y, worldWidth, GAME_HEIGHT - FLOOR_MIN_Y);
-    // Glowing purple veins
     floor.lineStyle(1, 0x8800ff, 0.3);
-    for (let x = 0; x < worldWidth; x += 150) {
-      floor.lineBetween(x, FLOOR_MIN_Y, x + 60, FLOOR_MIN_Y + 60);
-      floor.lineBetween(x + 60, FLOOR_MIN_Y + 60, x + 100, FLOOR_MIN_Y + 30);
-    }
-    // Dark reflective tiles
-    floor.fillStyle(0x2a0040, 0.6);
-    for (let x = 0; x < worldWidth; x += 80) {
-      floor.fillRect(x + 4, FLOOR_MIN_Y + 4, 72, 20);
-    }
+    floor.lineBetween(0, FLOOR_MIN_Y + 6, worldWidth, FLOOR_MIN_Y + 6);
+    floor.fillStyle(0x2a0040, 0.55);
+    // Just a few floor accent blocks
+    [0, 200, 400, 600, 800, 1000].forEach(x => {
+      floor.fillRect(x + 4, FLOOR_MIN_Y + 4, 192, 18);
+    });
     objects.push(floor);
 
     return objects;
