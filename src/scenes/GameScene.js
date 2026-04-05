@@ -19,15 +19,27 @@ export class GameScene extends Phaser.Scene {
 
   /** Set up all game systems for the current level */
   create() {
-    // Fade in from black so the transition is smooth
-    this.cameras.main.fadeIn(400, 0, 0, 0);
+    try {
+      this._setup();
+    } catch (err) {
+      // Paint the error visibly so we can debug without opening DevTools
+      this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000).setOrigin(0).setScrollFactor(0);
+      this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40, 'ERROR IN GAMESCENE', {
+        fontFamily: 'monospace', fontSize: '18px', color: '#ff4444',
+      }).setOrigin(0.5).setScrollFactor(0);
+      this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, String(err), {
+        fontFamily: 'monospace', fontSize: '13px', color: '#ffffff',
+        wordWrap: { width: GAME_WIDTH - 40 },
+      }).setOrigin(0.5).setScrollFactor(0);
+      console.error('GameScene create() error:', err);
+    }
+  }
 
+  /** Internal setup — separated so errors are catchable */
+  _setup() {
     const levelData = LEVELS[this._levelNum - 1];
     this._levelData = levelData;
     this._worldWidth = WORLD_WIDTH;
-
-    // Physics world bounds
-    this.physics.world.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
 
     // Background
     this._bgObjects = BackgroundManager.createBackground(this, this._levelNum, WORLD_WIDTH);
@@ -49,7 +61,6 @@ export class GameScene extends Phaser.Scene {
 
     // Camera
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, GAME_HEIGHT);
-    this.cameras.main.setLerp(0.05, 0);
 
     // HUD (fixed to camera)
     this._createHUD();
@@ -61,14 +72,12 @@ export class GameScene extends Phaser.Scene {
     // Level name flash
     this._showLevelTitle(levelData.name, levelData.subtitle);
 
-    // Camera scroll unlock (advances as waves clear)
-    this._cameraTargetX = GAME_WIDTH / 2;
     this._levelClearSent = false;
   }
 
   /** Main update loop */
   update(time, delta) {
-    if (!this._player1) return;
+    if (!this._player1 || !this._waveManager) return;
 
     // Update players
     this._player1.update(delta, this._enemies);

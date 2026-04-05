@@ -106,8 +106,8 @@ export class MenuScene extends Phaser.Scene {
     // Space bar to start
     const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     spaceKey.once('down', () => {
-      this.cameras.main.fadeOut(400, 0, 0, 0);
-      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      // Use delayedCall — avoids any camera-event timing issues
+      this.time.delayedCall(50, () => {
         this.scene.start('GameScene', { level: 1 });
       });
     });
